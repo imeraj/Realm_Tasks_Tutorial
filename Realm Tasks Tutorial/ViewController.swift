@@ -11,14 +11,51 @@ import Foundation
 import RealmSwift
 
 class ViewController: UITableViewController {
+  var notificationToken: NotificationToken?
   var items = List<Task>()
+  var taskList = TaskList()
+  var realm: Realm!
   
   override func viewDidLoad() {
     super.viewDidLoad()
     // Do any additional setup after loading the view, typically from a nib.
     setupUI()
+    setupRealm()
+  }
+  
+  deinit {
+    notificationToken?.invalidate()
+  }
+  
+  func setupRealm() {
+    let username = "realm-admin"
+    let password = "test"
     
-    items.append(Task(value: ["text": "My First Task"]))
+    SyncUser.logIn(with: .usernamePassword(username: username, password: password), server: URL(string: "http://127.0.0.1:9080")!) { user, error in
+      guard let user = user else {
+        fatalError(String(describing: error))
+      }
+      
+      DispatchQueue.main.async {
+        let configuration = Realm.Configuration(
+          syncConfiguration: SyncConfiguration(user: user, realmURL: URL(string: "realm://127.0.0.1:9080/~/realmtasks2")!)
+        )
+        self.realm = try! Realm(configuration: configuration)
+
+        func updateList() {
+          if self.realm != nil, let list = self.realm.objects(TaskList.self).first {
+            self.items = list.items
+          }
+          self.tableView.reloadData()
+        }
+        updateList()
+        
+        // Notify us when Realm changes
+        self.notificationToken = self.realm.observe { _,_ in
+          updateList()
+        }
+      }
+    }
   }
 
   func setupUI() {
@@ -53,8 +90,13 @@ class ViewController: UITableViewController {
     
     alertController.addAction(UIAlertAction(title: "Add", style: .default) { _ in
       guard let text = alertTextField.text, !text.isEmpty else { return }
+
+      self.taskList.items.append(Task(value: ["text": text]))
       
-      self.items.append(Task(value: ["text" : text]))
+      try! self.realm.write {
+        self.realm.create(TaskList.self, value: self.taskList, update: true)
+      }
+      
       self.tableView.reloadData()
     })
     

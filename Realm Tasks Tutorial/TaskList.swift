@@ -10,9 +10,9 @@ import Foundation
 import RealmSwift
 
 class TaskList: Object {
-      @objc dynamic var test = ""
-      @objc dynamic var id = ""
-      let items = List<Task>()
+  @objc dynamic var test = ""
+  @objc dynamic var id = ""
+  let items = List<Task>()
   
   override static func primaryKey() -> String? {
     return "id"

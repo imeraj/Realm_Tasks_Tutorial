@@ -12,4 +12,9 @@ import RealmSwift
 class Task: Object {
   @objc dynamic var text = ""
   @objc dynamic var completed = false
+  @objc dynamic var id = UUID().uuidString
+  
+  override static func primaryKey() -> String? {
+    return "id"
+  }
 }
