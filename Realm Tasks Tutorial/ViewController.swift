@@ -44,6 +44,7 @@ class ViewController: UITableViewController {
 
         func updateList() {
           if self.realm != nil, let list = self.realm.objects(TaskList.self).first {
+            self.taskList = list
             self.items = list.items
           }
           self.tableView.reloadData()
@@ -59,6 +60,7 @@ class ViewController: UITableViewController {
   }
 
   func setupUI() {
+    navigationItem.leftBarButtonItem = editButtonItem
     navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(add))
   }
   
@@ -75,8 +77,42 @@ class ViewController: UITableViewController {
     let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
     let item = items[indexPath.row]
     cell.textLabel?.text = item.text
- //   cell.textLabel?.alpha = item.completed? 0.5: 1
+    cell.textLabel?.alpha = item.completed ? 0.5: 1
     return cell
+  }
+  
+  override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+    try! realm.write {
+      taskList.items.move(from: sourceIndexPath.row, to: destinationIndexPath.row)
+    }
+  }
+  
+  override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+    if editingStyle == .delete {
+      try! realm.write {
+        realm.delete(taskList.items[indexPath.row])
+      }
+    }
+  }
+  
+  override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    let item = taskList.items[indexPath.row]
+    
+    try! realm.write {
+      item.completed = !item.completed
+      let destinationIndexPath: IndexPath
+    
+      if item.completed {
+        // move cell to bottom
+        destinationIndexPath = IndexPath(row: items.count - 1, section: 0)
+      } else {
+        // move cell just above the first completed item
+        let completedCount = self.taskList.items.filter("completed = true").count
+        destinationIndexPath = IndexPath(row: items.count - completedCount - 1, section: 0)
+      }
+      
+      items.move(from: indexPath.row, to: destinationIndexPath.row)
+    }
   }
   
   @objc func add() {
@@ -90,10 +126,9 @@ class ViewController: UITableViewController {
     
     alertController.addAction(UIAlertAction(title: "Add", style: .default) { _ in
       guard let text = alertTextField.text, !text.isEmpty else { return }
-
-      self.taskList.items.append(Task(value: ["text": text]))
       
       try! self.realm.write {
+        self.taskList.items.insert(Task(value: ["text": text]), at: self.taskList.items.filter("completed = false").count)
         self.realm.create(TaskList.self, value: self.taskList, update: true)
       }
       
